@@ -1,0 +1,48 @@
+{
+  "name": "soniceditor",
+  "productName": "SonicEditor Pro",
+  "version": "1.0.0",
+  "description": "Editor de audio profesional y privado 100% offline",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build:win": "electron-builder --windows",
+    "build:mac": "electron-builder --mac"
+  },
+  "keywords": [
+    "audio",
+    "editor",
+    "offline",
+    "privacidad"
+  ],
+  "author": "SonicEditor Team",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1"
+  },
+  "build": {
+    "appId": "com.soniceditor.app",
+    "productName": "SonicEditor Pro",
+    "copyright": "Copyright © 2024 SonicEditor",
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "icon.png"
+    },
+    "portable": {
+      "artifactName": "SonicEditor_Pro_Portable.exe"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "icon.png",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "artifactName": "SonicEditor_Instalador_Mac.dmg"
+    }
+  }
+}
