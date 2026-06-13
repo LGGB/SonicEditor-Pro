@@ -143,6 +143,11 @@ class AudioEditor {
         this.showLoading();
         document.getElementById('file-info').innerText = `Cargando: ${file.name}...`;
 
+        // Liberar buffers anteriores para ayudar al recolector de basura (GC)
+        this.originalBuffer = null;
+        this.currentBuffer = null;
+        this.undoStack = [];
+
         try {
             const arrayBuffer = await file.arrayBuffer();
             

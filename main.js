@@ -53,7 +53,22 @@ function createWindow() {
   win.webContents.setWindowOpenHandler(({ url }) => {
     return { action: 'deny' };
   });
+
+  // Si el proceso de renderizado falla, informar al usuario en lugar de dejar la pantalla en negro
+  win.webContents.on('render-process-gone', (event, details) => {
+    console.error('Renderer process gone:', details.reason);
+    dialog.showMessageBox(win, {
+      type: 'error',
+      title: 'Error de Aplicación',
+      message: 'El procesador de audio ha colapsado por falta de memoria.',
+      detail: 'Intenta cerrar otras aplicaciones o usar un archivo de audio más pequeño. El programa se cerrará ahora.',
+      buttons: ['Entendido']
+    }).then(() => app.quit());
+  });
 }
+
+// CRÍTICO: Desactivar aceleración por hardware para evitar fallos de GPU (Pantallas negras) en Windows
+app.disableHardwareAcceleration();
 
 app.whenReady().then(() => {
   checkDependencies();
