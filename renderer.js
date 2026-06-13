@@ -134,23 +134,35 @@ class AudioEditor {
 
     async loadFile(file) {
         if (!file) return;
+        
+        // Validación de tamaño razonable para memoria JS
+        if (file.size > 200 * 1024 * 1024) { // 200MB límite sugerido
+            if (!confirm("El archivo es muy grande y podría ralentizar la aplicación. ¿Deseas continuar?")) return;
+        }
+
         this.showLoading();
-        
         document.getElementById('file-info').innerText = `Cargando: ${file.name}...`;
-        const arrayBuffer = await file.arrayBuffer();
-        
-        this.audioCtx.decodeAudioData(arrayBuffer, (buffer) => {
-            this.originalBuffer = buffer;
-            this.currentBuffer = this.cloneBuffer(buffer);
-            this.drawWaveform();
-            this.updateTotalTime();
-            document.getElementById('file-info').innerText = `${file.name} (${Math.round(buffer.duration)}s)`;
+
+        try {
+            const arrayBuffer = await file.arrayBuffer();
+            
+            this.audioCtx.decodeAudioData(arrayBuffer, (buffer) => {
+                this.originalBuffer = buffer;
+                this.currentBuffer = this.cloneBuffer(buffer);
+                this.drawWaveform();
+                this.updateTotalTime();
+                document.getElementById('file-info').innerText = `${file.name} (${Math.round(buffer.duration)}s)`;
+                this.hideLoading();
+            }, (err) => {
+                this.hideLoading();
+                alert("Error decodificando audio. Asegúrate de que es un archivo válido (MP3, WAV o M4A).");
+                console.error(err);
+            });
+        } catch (error) {
             this.hideLoading();
-        }, (err) => {
-            this.hideLoading();
-            alert("Error decodificando audio. Asegúrate de que es un archivo válido (MP3, WAV o M4A).");
-            console.error(err);
-        });
+            alert("Error al leer el archivo. Puede que esté dañado o bloqueado.");
+            console.error(error);
+        }
     }
 
     cloneBuffer(buffer) {
@@ -204,11 +216,17 @@ class AudioEditor {
         const step = Math.ceil(data.length / width);
         const amp = height / 2;
 
+        // OPTIMIZACIÓN: No analizar cada una de las millones de muestras si el paso es muy grande
+        const samplesPerPixel = Math.min(step, 1000); 
+        const subStep = Math.max(1, Math.floor(step / samplesPerPixel));
+
         for (let i = 0; i < width; i++) {
             let min = 1.0;
             let max = -1.0;
-            for (let j = 0; j < step; j++) {
-                const index = i * step + j;
+            const start = i * step;
+            
+            for (let j = 0; j < step; j += subStep) {
+                const index = start + j;
                 if (index >= data.length) break;
                 const datum = data[index];
                 if (datum < min) min = datum;
