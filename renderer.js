@@ -153,7 +153,7 @@ class AudioEditor {
             
             this.audioCtx.decodeAudioData(arrayBuffer, (buffer) => {
                 this.originalBuffer = buffer;
-                this.currentBuffer = this.cloneBuffer(buffer);
+                this.currentBuffer = buffer; // Compartir referencia para ahorrar 50% de RAM al inicio
                 this.drawWaveform();
                 this.updateTotalTime();
                 document.getElementById('file-info').innerText = `${file.name} (${Math.round(buffer.duration)}s)`;
@@ -419,6 +419,12 @@ class AudioEditor {
     // Editing Operations
     editSelection(type) {
         if (!this.currentBuffer || !this.selection.active) return;
+        
+        // Clonar antes de la primera edición para proteger el original
+        if (this.currentBuffer === this.originalBuffer) {
+            this.currentBuffer = this.cloneBuffer(this.originalBuffer);
+        }
+
         this.pushToUndo();
         this.showLoading();
 

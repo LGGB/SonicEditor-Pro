@@ -67,6 +67,9 @@ function createWindow() {
   });
 }
 
+// CRÍTICO: Aumentar el límite de memoria a 8GB (8192 MB)
+app.commandLine.appendSwitch('js-flags', '--max-old-space-size=8192');
+
 // CRÍTICO: Desactivar aceleración por hardware para evitar fallos de GPU (Pantallas negras) en Windows
 app.disableHardwareAcceleration();
 
