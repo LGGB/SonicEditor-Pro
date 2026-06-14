@@ -155,7 +155,7 @@ class AudioEditor {
                 
                 // USAMOS UN CONTEXTO OFFLINE (VIRTUAL) PARA DECODIFICAR
                 // Esto evita conflictos con los drivers de sonido de Windows
-                const offlineCtx = new OfflineAudioContext(1, 44100, 44100);
+                const offlineCtx = new OfflineAudioContext(2, 44100, 44100);
                 
                 offlineCtx.decodeAudioData(arrayBuffer, (buffer) => {
                     this.originalBuffer = buffer;

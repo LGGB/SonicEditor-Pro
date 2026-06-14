@@ -31,48 +31,32 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      sandbox: false, // Vital para Windows
       preload: path.join(__dirname, 'preload.js')
     }
   });
 
   win.loadFile('index.html');
   
-  // Strict Content Security Policy implementation
-  win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
-    callback({
-      responseHeaders: {
-        ...details.responseHeaders,
-        'Content-Security-Policy': [
-          "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' data: blob:;"
-        ]
-      }
-    });
-  });
-
-  // Open external links in real browser (though we block all outgoing traffic)
+  // Open external links safely
   win.webContents.setWindowOpenHandler(({ url }) => {
+    shell.openExternal(url);
     return { action: 'deny' };
   });
 
-  // Informe detallado de errores si el proceso muere
+  // Si el proceso de renderizado falla, informar con el código técnico
   win.webContents.on('render-process-gone', (event, details) => {
     dialog.showMessageBox(win, {
       type: 'error',
-      title: 'Diagnostico de Error',
-      message: `El proceso de audio ha fallado: ${details.reason}`,
-      detail: `Código: ${details.exitCode}. (Por favor, anota este código si vuelve a fallar)`,
-      buttons: ['Cerrar Aplicación']
+      title: 'Aviso del Sistema',
+      message: `El motor de audio se ha detenido (Código: ${details.exitCode})`,
+      detail: 'Esto suele ocurrir si el audio es extremadamente largo o hay un conflicto de drivers. Intenta reiniciar la app.',
+      buttons: ['Entendido']
     }).then(() => app.quit());
   });
 }
 
-// CONFIGURACIÓN DE COMPATIBILIDAD TOTAL
-app.commandLine.appendSwitch('no-sandbox');
-app.commandLine.appendSwitch('disable-gpu');
-app.commandLine.appendSwitch('disable-software-rasterizer');
-app.commandLine.appendSwitch('js-flags', '--max-old-space-size=8192');
-app.disableHardwareAcceleration();
+// CONFIGURACIÓN ESTÁNDAR Y ESTABLE
+app.commandLine.appendSwitch('js-flags', '--max-old-space-size=4096'); // Suficiente con el ahorro de RAM
 
 app.whenReady().then(() => {
   checkDependencies();
