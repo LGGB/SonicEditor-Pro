@@ -149,24 +149,27 @@ class AudioEditor {
         this.undoStack = [];
 
         try {
-            // No cargamos el buffer entero en una sola variable si podemos evitarlo
-            const arrayBuffer = await file.arrayBuffer();
-            
-            // Pequeño retardo para dejar que el sistema respire antes de la decodificación pesada
-            setTimeout(() => {
-                this.audioCtx.decodeAudioData(arrayBuffer, (buffer) => {
-                    this.originalBuffer = buffer;
-                    this.currentBuffer = buffer; 
-                    this.drawWaveform();
-                    this.updateTotalTime();
-                    document.getElementById('file-info').innerText = `${file.name} (${Math.round(buffer.duration)}s)`;
-                    this.hideLoading();
-                }, (err) => {
-                    this.hideLoading();
-                    alert("Error decodificando audio. Asegúrate de que es un archivo válido.");
-                    console.error(err);
-                });
-            }, 500);
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const arrayBuffer = e.target.result;
+                
+                // Pequeño retardo para estabilidad
+                setTimeout(() => {
+                    this.audioCtx.decodeAudioData(arrayBuffer, (buffer) => {
+                        this.originalBuffer = buffer;
+                        this.currentBuffer = buffer; 
+                        this.drawWaveform();
+                        this.updateTotalTime();
+                        document.getElementById('file-info').innerText = `${file.name} (${Math.round(buffer.duration)}s)`;
+                        this.hideLoading();
+                    }, (err) => {
+                        this.hideLoading();
+                        alert("Error decodificando audio.");
+                        console.error(err);
+                    });
+                }, 500);
+            };
+            reader.readAsArrayBuffer(file);
         } catch (error) {
             this.hideLoading();
             alert("Error al leer el archivo. Puede que esté dañado o bloqueado.");
