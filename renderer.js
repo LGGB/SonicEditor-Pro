@@ -153,21 +153,22 @@ class AudioEditor {
             reader.onload = (e) => {
                 const arrayBuffer = e.target.result;
                 
-                // Pequeño retardo para estabilidad
-                setTimeout(() => {
-                    this.audioCtx.decodeAudioData(arrayBuffer, (buffer) => {
-                        this.originalBuffer = buffer;
-                        this.currentBuffer = buffer; 
-                        this.drawWaveform();
-                        this.updateTotalTime();
-                        document.getElementById('file-info').innerText = `${file.name} (${Math.round(buffer.duration)}s)`;
-                        this.hideLoading();
-                    }, (err) => {
-                        this.hideLoading();
-                        alert("Error decodificando audio.");
-                        console.error(err);
-                    });
-                }, 500);
+                // USAMOS UN CONTEXTO OFFLINE (VIRTUAL) PARA DECODIFICAR
+                // Esto evita conflictos con los drivers de sonido de Windows
+                const offlineCtx = new OfflineAudioContext(1, 44100, 44100);
+                
+                offlineCtx.decodeAudioData(arrayBuffer, (buffer) => {
+                    this.originalBuffer = buffer;
+                    this.currentBuffer = buffer; 
+                    this.drawWaveform();
+                    this.updateTotalTime();
+                    document.getElementById('file-info').innerText = `${file.name} (${Math.round(buffer.duration)}s)`;
+                    this.hideLoading();
+                }, (err) => {
+                    this.hideLoading();
+                    alert("Error decodificando audio.");
+                    console.error(err);
+                });
             };
             reader.readAsArrayBuffer(file);
         } catch (error) {
