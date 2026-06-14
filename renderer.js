@@ -92,6 +92,7 @@ class AudioEditor {
         document.getElementById('btn-fade-out').onclick = () => this.applyFade('out');
         document.getElementById('btn-noise-reduce').onclick = () => this.applyNoiseReduction();
 
+        document.getElementById('btn-apply-filters').onclick = () => this.applyFilters();
         document.getElementById('btn-export').onclick = () => this.exportToWav();
 
         // Waveform Interaction
@@ -200,16 +201,18 @@ class AudioEditor {
 
     undo() {
         if (this.undoStack.length === 0) return;
-        this.currentBuffer = this.undoStack.pop();
-        this.drawWaveform();
-        this.updateTotalTime();
-        this.stop();
+        
+        if (confirm("¿Deshacer el último cambio realizado?")) {
+            this.currentBuffer = this.undoStack.pop();
+            this.drawWaveform();
+            this.updateTotalTime();
+            this.stop();
+        }
     }
 
     drawWaveform() {
         if (!this.currentBuffer) return;
         
-        // Draw Waveform
         const ctx = this.canvas.getContext('2d');
         const width = this.canvas.clientWidth;
         const height = this.canvas.clientHeight;
@@ -218,18 +221,30 @@ class AudioEditor {
 
         ctx.clearRect(0, 0, width, height);
         
+        // 1. DIBUJAR ONDA ORIGINAL (FONSTRO / GHOST)
+        // Solo si hay cambios respecto al original
+        if (this.originalBuffer && this.currentBuffer !== this.originalBuffer) {
+            this.drawSimpleWave(ctx, this.originalBuffer, width, height, 'rgba(255, 255, 255, 0.15)');
+        }
+
+        // 2. DIBUJAR ONDA ACTUAL (PRINCIPAL)
         const gradient = ctx.createLinearGradient(0, 0, 0, height);
         gradient.addColorStop(0, '#00f2ff');
         gradient.addColorStop(0.5, '#7000ff');
         gradient.addColorStop(1, '#00f2ff');
 
-        ctx.fillStyle = gradient;
-        
-        const data = this.currentBuffer.getChannelData(0);
+        this.drawSimpleWave(ctx, this.currentBuffer, width, height, gradient);
+
+        this.drawTimeline();
+    }
+
+    // Función auxiliar para dibujar una onda en un contexto dado
+    drawSimpleWave(ctx, buffer, width, height, style) {
+        ctx.fillStyle = style;
+        const data = buffer.getChannelData(0);
         const step = Math.ceil(data.length / width);
         const amp = height / 2;
 
-        // OPTIMIZACIÓN: No analizar cada una de las millones de muestras si el paso es muy grande
         const samplesPerPixel = Math.min(step, 1000); 
         const subStep = Math.max(1, Math.floor(step / samplesPerPixel));
 
@@ -249,8 +264,6 @@ class AudioEditor {
             const y = (height - barHeight) / 2;
             ctx.fillRect(i, y, 1, barHeight);
         }
-
-        this.drawTimeline();
     }
 
     drawTimeline() {
@@ -487,10 +500,13 @@ class AudioEditor {
 
     reset() {
         if (!this.originalBuffer) return;
-        this.currentBuffer = this.cloneBuffer(this.originalBuffer);
-        this.drawWaveform();
-        this.updateTotalTime();
-        this.stop();
+        
+        if (confirm("¿Estás seguro de que deseas anular todos los cambios? Se restaurará el archivo original y perderás las ediciones actuales.")) {
+            this.currentBuffer = this.cloneBuffer(this.originalBuffer);
+            this.drawWaveform();
+            this.updateTotalTime();
+            this.stop();
+        }
     }
 
     applyFade(type) {
@@ -521,6 +537,92 @@ class AudioEditor {
             this.seekToPosition(0);
         } else {
             this.seekToPosition(this.currentBuffer.duration - (fadeTime + 2));
+        }
+    }
+
+    async applyFilters() {
+        if (!this.currentBuffer) return;
+
+        const gainVal     = parseFloat(document.getElementById('gain-control').value);
+        const bassVal     = parseFloat(document.getElementById('bass-control').value);
+        const trebleVal   = parseFloat(document.getElementById('treble-control').value);
+        const loudnessVal = parseFloat(document.getElementById('loudness-control').value);
+
+        // No procesar si todo está en valor neutro
+        const isNeutral = gainVal === 1 && bassVal === 0 && trebleVal === 0 && loudnessVal === 0;
+        if (isNeutral) {
+            alert('Los controles están en valores neutros. Ajusta algún parámetro antes de aplicar.');
+            return;
+        }
+
+        if (!confirm('¿Aplicar permanentemente los cambios de EQ y volumen al audio? Esta acción se guardará en el historial de Deshacer.')) return;
+
+        this.pushToUndo();
+        this.showLoading();
+
+        try {
+            const buf = this.currentBuffer;
+            const offlineCtx = new OfflineAudioContext(
+                buf.numberOfChannels,
+                buf.length,
+                buf.sampleRate
+            );
+
+            // Grafo de procesado offline
+            const source   = offlineCtx.createBufferSource();
+            source.buffer  = buf;
+
+            const bass = offlineCtx.createBiquadFilter();
+            bass.type = 'lowshelf';
+            bass.frequency.value = 150;
+            bass.gain.value = bassVal;
+
+            const treble = offlineCtx.createBiquadFilter();
+            treble.type = 'highshelf';
+            treble.frequency.value = 4000;
+            treble.gain.value = trebleVal;
+
+            const comp = offlineCtx.createDynamicsCompressor();
+            comp.threshold.value = -10 - (loudnessVal * 1.5);
+            comp.knee.value = 40;
+            comp.ratio.value = 12;
+            comp.attack.value = 0.003;
+            comp.release.value = 0.25;
+
+            const gain = offlineCtx.createGain();
+            gain.gain.value = gainVal + (loudnessVal / 10);
+
+            source.connect(bass);
+            bass.connect(treble);
+            treble.connect(comp);
+            comp.connect(gain);
+            gain.connect(offlineCtx.destination);
+
+            source.start(0);
+            const renderedBuffer = await offlineCtx.startRendering();
+
+            this.currentBuffer = renderedBuffer;
+
+            // Resetear controles a neutro tras aplicar
+            document.getElementById('gain-control').value    = 1;
+            document.getElementById('bass-control').value    = 0;
+            document.getElementById('treble-control').value  = 0;
+            document.getElementById('loudness-control').value = 0;
+            // Sincronizar nodos en tiempo real
+            this.masterGain.gain.value          = 1;
+            this.bassFilter.gain.value          = 0;
+            this.trebleFilter.gain.value        = 0;
+            this.compressor.threshold.value     = -10;
+
+            this.drawWaveform();
+            this.updateTotalTime();
+            this.stop();
+            this.hideLoading();
+            alert('¡Cambios aplicados correctamente! Puedes usar "Deshacer último cambio" si no es lo que esperabas.');
+        } catch (err) {
+            this.hideLoading();
+            console.error(err);
+            alert('Error al procesar el audio: ' + err.message);
         }
     }
 
@@ -580,50 +682,72 @@ class AudioEditor {
         update();
     }
 
-    exportToWav() {
+    async exportToWav() {
         if (!this.currentBuffer) return;
         this.showLoading();
 
-        setTimeout(() => {
-            const buffer = this.currentBuffer;
+        try {
+            const wavBlob = await this._buildWavBlob(this.currentBuffer);
+
+            // Intentar API moderna (Chrome/Edge) para elegir carpeta y nombre
+            if (window.showSaveFilePicker) {
+                this.hideLoading();
+                try {
+                    const fileHandle = await window.showSaveFilePicker({
+                        suggestedName: `audio_editado_${this._timestamp()}.wav`,
+                        types: [{
+                            description: 'Archivo de audio WAV',
+                            accept: { 'audio/wav': ['.wav'] }
+                        }]
+                    });
+                    const writable = await fileHandle.createWritable();
+                    await writable.write(wavBlob);
+                    await writable.close();
+                    alert('✅ Archivo guardado correctamente.');
+                } catch (err) {
+                    if (err.name !== 'AbortError') {
+                        // Si falla por permisos, usar descarga clásica
+                        this._downloadBlob(wavBlob);
+                    }
+                }
+            } else {
+                // Fallback: descarga clásica (Firefox / archivo local)
+                this.hideLoading();
+                this._downloadBlob(wavBlob);
+            }
+        } catch (err) {
+            this.hideLoading();
+            console.error(err);
+            alert('Error al exportar: ' + err.message);
+        }
+    }
+
+    _buildWavBlob(buffer) {
+        return new Promise((resolve) => {
             const length = buffer.length * buffer.numberOfChannels * 2 + 44;
             const bufferView = new ArrayBuffer(length);
             const view = new DataView(bufferView);
-            
+
             const writeString = (offset, string) => {
                 for (let i = 0; i < string.length; i++) {
                     view.setUint8(offset + i, string.charCodeAt(i));
                 }
             };
 
-            /* RIFF identifier */
             writeString(0, 'RIFF');
-            /* file length */
             view.setUint32(4, 32 + buffer.length * buffer.numberOfChannels * 2, true);
-            /* RIFF type */
             writeString(8, 'WAVE');
-            /* format chunk identifier */
             writeString(12, 'fmt ');
-            /* format chunk length */
             view.setUint32(16, 16, true);
-            /* sample format (raw) */
             view.setUint16(20, 1, true);
-            /* channel count */
             view.setUint16(22, buffer.numberOfChannels, true);
-            /* sample rate */
             view.setUint32(24, buffer.sampleRate, true);
-            /* byte rate (sample rate * block align) */
             view.setUint32(28, buffer.sampleRate * buffer.numberOfChannels * 2, true);
-            /* block align (channel count * bytes per sample) */
             view.setUint16(32, buffer.numberOfChannels * 2, true);
-            /* bits per sample */
             view.setUint16(34, 16, true);
-            /* data chunk identifier */
             writeString(36, 'data');
-            /* data chunk length */
             view.setUint32(40, buffer.length * buffer.numberOfChannels * 2, true);
 
-            // Write PCM samples
             let offset = 44;
             for (let i = 0; i < buffer.length; i++) {
                 for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
@@ -633,28 +757,35 @@ class AudioEditor {
                 }
             }
 
-            const blob = new Blob([bufferView], { type: 'audio/wav' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `editado_${new Date().getTime()}.wav`;
-            link.click();
-            
-            this.hideLoading();
-            alert("Archivo exportado correctamente a tu carpeta local de Descargas.");
-        }, 100);
+            resolve(new Blob([bufferView], { type: 'audio/wav' }));
+        });
+    }
+
+    _downloadBlob(blob) {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `audio_editado_${this._timestamp()}.wav`;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+        alert('✅ Archivo descargado en tu carpeta de Descargas.');
+    }
+
+    _timestamp() {
+        const d = new Date();
+        return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}_${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}`;
     }
 
     handleKeys(e) {
+        const isUndo = (e.ctrlKey || e.metaKey) && e.code === 'KeyZ'; // Ctrl+Z (Win) o Cmd+Z (Mac)
         if (e.code === 'Space') {
             e.preventDefault();
             this.togglePlayback();
         } else if (e.code === 'Delete' || e.code === 'Backspace') {
             if (this.selection.active) this.editSelection('cut');
-        } else if (e.ctrlKey && e.code === 'KeyZ') {
+        } else if (isUndo) {
+            e.preventDefault();
             this.undo();
-        } else if (e.code === 'KeyZ' && !e.ctrlKey) {
-            this.undo(); // Simple Z works too
         }
     }
 

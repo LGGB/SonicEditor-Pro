@@ -33,6 +33,26 @@
         <main class="content">
             <!-- Tools Sidebar -->
             <aside class="sidebar">
+                <!-- Panel de Ajustes de Selección (se activa al seleccionar) -->
+                <div class="tool-group" id="selection-effects-panel" style="display:none; border: 1px solid rgba(0,242,255,0.3); border-radius: 8px; padding: 10px; background: rgba(0,242,255,0.04);">
+                    <h3 style="color: var(--accent);">⚡ Ajustes de Selección</h3>
+                    <div class="control">
+                        <label>Volumen de la Selección</label>
+                        <input type="range" id="sel-gain-control" min="0" max="2" step="0.01" value="1">
+                        <span id="sel-gain-value" style="font-size:0.7rem; color:var(--accent); text-align:right;">100%</span>
+                    </div>
+                    <div class="control">
+                        <label>Fade In en selección (s)</label>
+                        <input type="range" id="sel-fade-in" min="0" max="5" step="0.1" value="0">
+                    </div>
+                    <div class="control">
+                        <label>Fade Out en selección (s)</label>
+                        <input type="range" id="sel-fade-out" min="0" max="5" step="0.1" value="0">
+                    </div>
+                    <button id="btn-apply-to-selection" class="btn-primary" style="width:100%; margin-top:6px;">⚡ Aplicar a Selección</button>
+                    <button id="btn-normalize-selection" style="width:100%; margin-top:4px;">📊 Normalizar Selección</button>
+                </div>
+
                 <div class="tool-group">
                     <h3>Selección Actual</h3>
                     <button id="btn-cut" title="Eliminar selección">Cortar</button>
@@ -72,6 +92,7 @@
                         <label>Cuerpo / Loudness (Maximizado)</label>
                         <input type="range" id="loudness-control" min="0" max="20" value="0">
                     </div>
+                    <button id="btn-apply-filters" class="btn-accent" style="margin-top: 10px; width: 100%;" title="Aplica permanentemente los ajustes de volumen y EQ a la onda">✅ Aplicar Cambios</button>
                 </div>
 
                 <div class="tool-group">
@@ -116,7 +137,7 @@
                     <button id="btn-stop" class="btn-icon" title="Parar y volver al principio">⏹</button>
                     <button id="btn-play-pause" class="btn-icon" title="Reproducir o pausar (Tecla Espacio)">▶</button>
                     <button id="btn-undo" class="btn-secondary" title="Deshacer el último cambio realizado (Tecla Z)">↩
-                        Deshacer</button>
+                        Deshacer último cambio</button>
                     <button id="btn-reset" class="btn-danger"
                         title="Borrar todos los cambios y volver al original">Anular Cambios (Reset)</button>
 
