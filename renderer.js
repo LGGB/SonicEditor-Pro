@@ -149,20 +149,24 @@ class AudioEditor {
         this.undoStack = [];
 
         try {
+            // No cargamos el buffer entero en una sola variable si podemos evitarlo
             const arrayBuffer = await file.arrayBuffer();
             
-            this.audioCtx.decodeAudioData(arrayBuffer, (buffer) => {
-                this.originalBuffer = buffer;
-                this.currentBuffer = buffer; // Compartir referencia para ahorrar 50% de RAM al inicio
-                this.drawWaveform();
-                this.updateTotalTime();
-                document.getElementById('file-info').innerText = `${file.name} (${Math.round(buffer.duration)}s)`;
-                this.hideLoading();
-            }, (err) => {
-                this.hideLoading();
-                alert("Error decodificando audio. Asegúrate de que es un archivo válido (MP3, WAV o M4A).");
-                console.error(err);
-            });
+            // Pequeño retardo para dejar que el sistema respire antes de la decodificación pesada
+            setTimeout(() => {
+                this.audioCtx.decodeAudioData(arrayBuffer, (buffer) => {
+                    this.originalBuffer = buffer;
+                    this.currentBuffer = buffer; 
+                    this.drawWaveform();
+                    this.updateTotalTime();
+                    document.getElementById('file-info').innerText = `${file.name} (${Math.round(buffer.duration)}s)`;
+                    this.hideLoading();
+                }, (err) => {
+                    this.hideLoading();
+                    alert("Error decodificando audio. Asegúrate de que es un archivo válido.");
+                    console.error(err);
+                });
+            }, 500);
         } catch (error) {
             this.hideLoading();
             alert("Error al leer el archivo. Puede que esté dañado o bloqueado.");
